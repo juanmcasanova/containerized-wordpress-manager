@@ -1,7 +1,7 @@
 import click
 
 from containerized_wp_manager.add import add_instance
-from containerized_wp_manager.check import check_environment
+from containerized_wp_manager.check import check_and_print
 from containerized_wp_manager.install import install_environment
 from containerized_wp_manager.list import list_instances
 
@@ -17,7 +17,7 @@ def check() -> None:
     """
     Checks the current environment to ensure everything is right.
     """
-    check_environment()
+    check_and_print()
 
 @main.command('install')
 def install() -> None:

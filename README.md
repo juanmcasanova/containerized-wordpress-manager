@@ -12,6 +12,7 @@ are a bunch of things that are global to the whole application:
   - Paths
   - Configuration templates (for HAProxy and the images)
 - Compatibility with more proxies (Nginx comes to mind, but potentially more)
+- Better checks (for containers, check configuration, check connectivity, etc)
 - Testing! (and CI)
 
 

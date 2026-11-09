@@ -8,7 +8,7 @@ from rich.text import Text
 
 CHECKS_MAP = {'version': 'Docker version', 'networks': 'Docker networks', 'haproxy_config': 'HAProxy configuration file', 'containers': 'Docker containers'}
 
-def check_environment() -> None:
+def check_environment() -> dict:
     checks = {}
     # TODO: All errors should be displayed at the same time, not one at a time
     docker_client = docker.from_env()
@@ -41,6 +41,11 @@ def check_environment() -> None:
     if missing_containers:
         checks['containers']['context'] = f'Missing containers: {missing_containers}'
 
+    return checks
+
+def check_and_print() -> None:
+    checks = check_environment()
+
     table = Table(title='Environment check')
     table.add_column('Check')
     table.add_column('Status')
@@ -61,7 +66,6 @@ def check_environment() -> None:
     console = Console()
     console.print(table)
 
-    # Final result
     if not any_fail:
         console.print('Everything seems to be okay, you are good to go!', style='green')
     else:
