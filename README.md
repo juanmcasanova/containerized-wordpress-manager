@@ -10,8 +10,7 @@ are a bunch of things that are global to the whole application:
 - Podman compatibility
 - Configurability:
   - Paths
-  - Configuration templates (for HAProxy and the images)
-- Compatibility with more proxies (Nginx comes to mind, but potentially more)
+  - Configuration templates (for Nginx and the images)
 - Better checks (for containers, check configuration, check connectivity, etc)
 - Testing! (and CI)
 

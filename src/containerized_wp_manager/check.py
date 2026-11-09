@@ -1,12 +1,10 @@
-import os
-
 import click
 import docker
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-CHECKS_MAP = {'version': 'Docker version', 'networks': 'Docker networks', 'haproxy_config': 'HAProxy configuration file', 'containers': 'Docker containers'}
+CHECKS_MAP = {'version': 'Docker version', 'networks': 'Docker networks', 'containers': 'Docker containers'}
 
 def check_environment() -> dict:
     checks = {}
@@ -27,11 +25,8 @@ def check_environment() -> dict:
     if missing_networks:
         checks['networks']['context'] = f'Missing networks: {missing_networks}'
 
-    # Check if the HAProxy configuration file exists
-    checks['haproxy_config'] = {'success': os.path.isfile('/opt/containerized-wp-manager/haproxy.cfg'), 'context': 'Path: /opt/containerized-wp-manager/haproxy.cfg'}
-
     # Get a list of available containers to know if we already have everything configured
-    missing_containers=['cwpm-haproxy', 'cwpm-mariadb']
+    missing_containers=['cwpm-nginx', 'cwpm-mariadb']
     for container in docker_client.containers.list(filters={'name': missing_containers}, all=True):
         if container.name in missing_containers:
             missing_containers.pop(missing_containers.index(container.name))

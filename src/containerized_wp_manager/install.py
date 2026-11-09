@@ -1,5 +1,4 @@
 import os
-import shutil
 
 import click
 import docker
@@ -21,16 +20,12 @@ def install_environment() -> None:
     try:
         os.makedirs('/opt/containerized-wp-manager', exist_ok=True)
         os.makedirs('/opt/containerized-wp-manager/sites', exist_ok=True)
+        os.makedirs('/opt/containerized-wp-manager/conf', exist_ok=True)
     except PermissionError:
         console.print('The executing user has no permissions to create the folder /opt/containerized-wp-manager, create it by hand and assign it to the right user.', style='red')
         click.get_current_context().exit(1)
 
     with Progress() as progress:
-        if not checks['haproxy_config']['success']:
-            haproxy_config_task = progress.add_task("Copying HAProxy config file...", total=100)
-            shutil.copyfile(f'{os.path.dirname(os.path.abspath(__file__))}/resources/haproxy.cfg', '/opt/containerized-wp-manager/haproxy.cfg')
-            progress.update(haproxy_config_task, advance=100)
-
         if not checks['networks']['success']:
             networks_task = progress.add_task("Creating necessary networks...", total=100)
             # TODO: We could have one but not the other, we should check
@@ -43,10 +38,10 @@ def install_environment() -> None:
         if not checks['containers']['success']:
             containers_task = progress.add_task("Creating necessary containers...", total=100)
             docker_client.containers.run(
-                image='haproxy:3.4-alpine',
+                image='nginx:1.31',
                 detach=True,
-                name='cwpm-haproxy',
-                volumes=['/opt/containerized-wp-manager/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro'],
+                name='cwpm-nginx',
+                volumes=['/opt/containerized-wp-manager/conf:/etc/nginx/conf.d:ro', '/opt/containerized-wp-manager/sites:/var/www/html:ro'],
                 ports={'80/tcp': 80},
                 restart_policy={"Name": 'always'},
                 network='cwpm-proxy'

@@ -21,7 +21,7 @@ def configure_mariadb(site_id: str) -> None:
         port=3306
     )
     cursor = connection.cursor()
-    # TODO: We should configure the network so we can limit this to Docker subnet
+    # TODO: We should configure the network so we can limit this to the Docker subnet
     cursor.execute(f'CREATE USER `cwpm_{site_id}`@`%` IDENTIFIED BY \'test\'')
     cursor.execute(f'CREATE DATABASE cwpm_{site_id}')
     cursor.execute(f'GRANT ALL PRIVILEGES ON cwpm_{site_id}.* TO `cwpm_{site_id}`@`%`')
@@ -45,9 +45,7 @@ def configure_wordpress(site_id: str) -> None:
             output.write(line)
 
 def add_instance(id: str, domain: str) -> None:
-    """
-    Adds everything needed for a new WordPress instance.
-    """
+    """Adds everything needed for a new WordPress instance."""
     # TODO: Check (and fail) if the instance already exists
     os.makedirs('/tmp/cwpm')
 
@@ -81,18 +79,14 @@ def add_instance(id: str, domain: str) -> None:
         name=f'cwpm-{id}',
         volumes=[f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'],
         restart_policy={"Name": 'always'},
-        ports={'80/tcp': 8080},
-        network='cwpm-proxy'
+        network='cwpm-proxy',
+        user=os.getuid()
     )
     docker_client.networks.list(names='cwpm-services')[0].connect(container)
 
-    with open('/opt/containerized-wp-manager/haproxy.cfg', 'r+t', newline='\n') as config:
-        for line in config:
-            if '<cwpm_FRONTEND_CONFIG>' in line:
-                config.write('    use_backend %[req.hdr(Host),lower]\n')
-        config.writelines([
-            f'backend {domain}\n',
-            f'    server {id} cwpm-{id}:80 check\n'
-        ])
+    with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}.conf', 'w', newline='\n') as config:
+        for line in template:
+            config.write(line.replace('<CWPM_DOMAIN>', domain).replace('<CWPM_ID>', id))
 
-    docker_client.containers.list(filters={'name': 'cwpm-haproxy'})[0].kill(signal='SIGHUP')
+    # Send a signal to Nginx to gracefully reload configuration
+    docker_client.containers.list(filters={'name': 'cwpm-nginx'})[0].exec_run('nginx -s reload')
