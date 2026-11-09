@@ -11,6 +11,7 @@ dependencies = [
     "click>=8.5.0",
     "docker>=7.2.0",
     "mariadb>=1.1.14",
+    "rich>=15.0.0",
 ]
 
 [project.scripts]

@@ -9,7 +9,7 @@ def install_environment():
     # with our requirements (and so it doesn't file when some things exist but other don't)
     docker_client = docker.from_env()
 
-    shutil.copyfile(f'{os.path.dirname(os.path.abspath(__file__))}/resources/haproxy.cfg', '/opt/wp-docker-manager/haproxy.cfg')
+    shutil.copyfile(f'{os.path.dirname(os.path.abspath(__file__))}/resources/haproxy.cfg', '/opt/containerized-wp-manager/haproxy.cfg')
 
     docker_client.networks.list()
     docker_client.networks.create('cwpm-services')
@@ -19,7 +19,7 @@ def install_environment():
         image='haproxy:3.4-alpine',
         detach=True,
         name='cwpm-haproxy',
-        volumes=['/opt/wp-docker-manager/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro'],
+        volumes=['/opt/containerized-wp-manager/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro'],
         ports={'80/tcp': 80},
         restart_policy={"Name": 'always'},
         network='cwpm-proxy'
@@ -28,7 +28,7 @@ def install_environment():
         image='mariadb:13.0',
         detach=True,
         name='cwpm-mariadb',
-        volumes=['/opt/wp-docker-manager/mariadb:/var/lib/mysql:Z'],
+        volumes=['/opt/containerized-wp-manager/mariadb:/var/lib/mysql:Z'],
         ports={'3306/tcp': 3306},
         restart_policy={"Name": 'always'},
         network='cwpm-services',
@@ -38,4 +38,4 @@ def install_environment():
     )
 
     # Ensure the sites folder exists
-    os.makedirs('/opt/wp-docker-manager/sites')
+    os.makedirs('/opt/containerized-wp-manager/sites')

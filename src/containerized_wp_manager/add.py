@@ -31,7 +31,7 @@ def configure_wordpress(site_id: str) -> None:
     Configures the wp-config.php file for WordPress.
     """
 
-    with open(f'/opt/wp-docker-manager/sites/{site_id}/wp-config-sample.php', 'r') as input, open(f'/opt/wp-docker-manager/sites/{site_id}/wp-config.php', 'w') as output:
+    with open(f'/opt/containerized-wp-manager/sites/{site_id}/wp-config-sample.php', 'r') as input, open(f'/opt/containerized-wp-manager/sites/{site_id}/wp-config.php', 'w') as output:
         for line in input:
             if 'database_name_here' in line:
                 line = line.replace('database_name_here', f'cwpm_{site_id}')
@@ -58,9 +58,9 @@ def add_instance(id: str, domain: str) -> None:
 
     click.echo('Extracting WordPress...')
     with zipfile.ZipFile(filename, 'r') as zf:
-        zf.extractall('/opt/wp-docker-manager/sites')
+        zf.extractall('/opt/containerized-wp-manager/sites')
 
-    os.rename('/opt/wp-docker-manager/sites/wordpress', f'/opt/wp-docker-manager/sites/{id}')
+    os.rename('/opt/containerized-wp-manager/sites/wordpress', f'/opt/containerized-wp-manager/sites/{id}')
     shutil.rmtree('/tmp/cwpm')
 
     click.echo('Configuring MariaDB...')
@@ -79,14 +79,14 @@ def add_instance(id: str, domain: str) -> None:
         image=f'cwpm-{id}:latest',
         detach=True,
         name=f'cwpm-{id}',
-        volumes=[f'/opt/wp-docker-manager/sites/{id}:/var/www/html:rw'],
+        volumes=[f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'],
         restart_policy={"Name": 'always'},
         ports={'80/tcp': 8080},
         network='cwpm-proxy'
     )
     docker_client.networks.list(names='cwpm-services')[0].connect(container)
 
-    with open('/opt/wp-docker-manager/haproxy.cfg', 'r+t', newline='\n') as config:
+    with open('/opt/containerized-wp-manager/haproxy.cfg', 'r+t', newline='\n') as config:
         for line in config:
             if '<cwpm_FRONTEND_CONFIG>' in line:
                 config.write('    use_backend %[req.hdr(Host),lower]\n')
