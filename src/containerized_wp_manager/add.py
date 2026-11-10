@@ -7,24 +7,16 @@ from urllib.request import urlretrieve
 
 import click
 import docker
-import mariadb
+import pymysql
 
 
 def configure_mariadb(site_id: str) -> None:
-    """
-    Configures the MariaDB database with everything necessary for WordPress to work.
-    """
-    connection = mariadb.connect(
-        user='root',
-        password='root',
-        host='127.0.0.1',
-        port=3306
-    )
-    cursor = connection.cursor()
-    # TODO: We should configure the network so we can limit this to the Docker subnet
-    cursor.execute(f'CREATE USER `cwpm_{site_id}`@`%` IDENTIFIED BY \'test\'')
-    cursor.execute(f'CREATE DATABASE cwpm_{site_id}')
-    cursor.execute(f'GRANT ALL PRIVILEGES ON cwpm_{site_id}.* TO `cwpm_{site_id}`@`%`')
+    """Configures the MariaDB database with everything necessary for WordPress to work."""
+    with pymysql.connect(user='root', password='root', host='127.0.0.1', port=3306) as connection, connection.cursor() as cursor:
+        # TODO: We should configure the network so we can limit this to the Docker subnet
+        cursor.execute(f'CREATE USER `cwpm_{site_id}`@`%` IDENTIFIED BY \'test\'')
+        cursor.execute(f'CREATE DATABASE cwpm_{site_id}')
+        cursor.execute(f'GRANT ALL PRIVILEGES ON cwpm_{site_id}.* TO `cwpm_{site_id}`@`%`')
 
 def configure_wordpress(site_id: str) -> None:
     """

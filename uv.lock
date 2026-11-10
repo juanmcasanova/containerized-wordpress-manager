@@ -121,7 +121,7 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "docker" },
-    { name = "mariadb" },
+    { name = "pymysql" },
     { name = "rich" },
 ]
 
@@ -134,7 +134,7 @@ dev = [
 requires-dist = [
     { name = "click", specifier = ">=8.5.0" },
     { name = "docker", specifier = ">=7.2.0" },
-    { name = "mariadb", specifier = ">=1.1.14" },
+    { name = "pymysql", specifier = ">=1.2.4" },
     { name = "rich", specifier = ">=15.0.0" },
 ]
 
@@ -165,21 +165,6 @@ wheels = [
 ]
 
 [[package]]
-name = "mariadb"
-version = "1.1.15"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "packaging" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c1/83/1a624918318fb4b0b71c7c6a5fec666dc80b82a138061c31b4b572c9a910/mariadb-1.1.15.tar.gz", hash = "sha256:91753a40e1614357b8118beed30b818e7d10c3078a2f47d5a77d80e40f4342d0", size = 137151, upload-time = "2026-11-09T13:27:09.834Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ff/7b/320a8020622aebcc73a6a535606fd4bf1560c78da4cfb858820fa7e7a0bd/mariadb-1.1.15-cp314-cp314-win32.whl", hash = "sha256:9153bcf5ac281d6f1431bb4ad73d508c1a20dfabca09e8797f2ae7bf9e428469", size = 202580, upload-time = "2026-11-09T13:27:05.07Z" },
-    { url = "https://files.pythonhosted.org/packages/3f/47/a66fa2bcf0f62749d65933343d528fb3f34f2f4b1d2f392e086c628aba56/mariadb-1.1.15-cp314-cp314-win_amd64.whl", hash = "sha256:d7ec579936bd5acb43d1d5b72f483efa922c628c04f4fe366b7120dc868798d3", size = 220822, upload-time = "2026-11-09T13:27:06.421Z" },
-    { url = "https://files.pythonhosted.org/packages/ac/92/709f65ee55072ce10eb20f7ac21c17c81e59b461e3710f25bb8240675bff/mariadb-1.1.15-cp315-cp315-win32.whl", hash = "sha256:93f47cfb14052df965ec4c801cc335373fe77916677155021e0fde0a44e4d259", size = 202662, upload-time = "2026-11-09T13:27:07.567Z" },
-    { url = "https://files.pythonhosted.org/packages/97/1d/ebdb60bab81f1ac0c929c31a64c85577c831c0d558f8b15ef144e2a7e328/mariadb-1.1.15-cp315-cp315-win_amd64.whl", hash = "sha256:0a524fd4bae866f2cf445394af7afa6e72afaa7969294115b2b672a9bb904317", size = 220867, upload-time = "2026-11-09T13:27:08.68Z" },
-]
-
-[[package]]
 name = "markdown-it-py"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -201,21 +186,21 @@ wheels = [
 ]
 
 [[package]]
-name = "packaging"
-version = "26.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz", hash = "sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79", size = 313412, upload-time = "2026-08-04T18:15:28.737Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl", hash = "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c", size = 129956, upload-time = "2026-08-04T18:15:27.159Z" },
-]
-
-[[package]]
 name = "pygments"
 version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/49/2e/ced460408999b33da6b31b0021b0f37d329e202d4169aeb164493778f25b/pygments-2.21.0.tar.gz", hash = "sha256:610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c", size = 5005329, upload-time = "2026-08-17T08:02:48.824Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl", hash = "sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9", size = 1250147, upload-time = "2026-08-17T08:02:44.912Z" },
+]
+
+[[package]]
+name = "pymysql"
+version = "1.2.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c8/69/808dc3d9bcc7d2841cdc2909b978c64eb1c450b7cd7b42d5907f7de7567d/pymysql-1.2.4.tar.gz", hash = "sha256:491558165b8e11f3644c5f9cfb30cc9c9111ffd54e53d3aa91b9a0a20be2294f", size = 51598, upload-time = "2026-11-09T09:37:09.356Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/60/acffa1e7261fdc68fadf6f196b66058e03dcb3df239f2c0acbfd11165845/pymysql-1.2.4-py3-none-any.whl", hash = "sha256:e169bed906168fffd0088925f45b3df024c2775c6fd128da0df773d47c458840", size = 46892, upload-time = "2026-11-09T09:37:07.987Z" },
 ]
 
 [[package]]
