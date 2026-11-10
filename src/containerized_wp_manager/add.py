@@ -119,5 +119,5 @@ def add_instance(id: str, domain: str) -> None:
         # Send a signal to Nginx to gracefully reload configuration
         docker_client.containers.list(filters={'name': 'cwpm-nginx'})[0].exec_run('nginx -s reload')
 
-        console = Console()
-        console.print(f'The site has correctly initialized, you can now access it via your browser in: https://{domain}', style='green')
+    console = Console()
+    console.print(f'The site has correctly initialized, you can now access it via your browser in: https://{domain}', style='green')
