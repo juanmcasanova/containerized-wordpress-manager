@@ -37,7 +37,7 @@ def configure_wordpress(site_id: str) -> None:
 
             output.write(line)
 
-def add_instance(id: str, domain: str) -> None:
+def add_instance(id: str, domain: str, skip_ssl: bool) -> None:
     """Adds everything needed for a new WordPress instance."""
     # TODO: Check (and fail) if the instance already exists
     os.makedirs('/tmp/cwpm')
@@ -89,35 +89,35 @@ def add_instance(id: str, domain: str) -> None:
         docker_client.networks.list(names='cwpm-services')[0].connect(container)
         progress.update(container_task, advance=50)
 
-        certbot_container = progress.add_task("Generating SSL certificate...", total=100)
-        with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}.conf', 'w', newline='\n') as config:
-            for line in template:
-                config.write(line.replace('<CWPM_DOMAIN>', domain).replace('<CWPM_ID>', id))
-        progress.update(certbot_container, advance=33)
-        # Send a signal to Nginx to gracefully reload configuration
-        docker_client.containers.list(filters={'name': 'cwpm-nginx'})[0].exec_run('nginx -s reload')
-        progress.update(certbot_container, advance=33)
-        docker_client.containers.run(
-            image='certbot/certbot',
-            name='cwpm-certbot',
-            volumes=[
-                f'/opt/containerized-wp-manager/certbot/etc/{id}:/etc/letsencrypt:rw',
-                f'/opt/containerized-wp-manager/certbot/var/{id}:/var/lib/letsencrypt:rw',
-                f'/opt/containerized-wp-manager/certbot/log/{id}:/var/log/letsencrypt:rw',
-                f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'
-            ],
-            command=f'certonly --non-interactive --agree-tos --webroot -w /var/www/html -d {domain}'
-        )
-        progress.update(certbot_container, advance=34)
-
-        # Recreate the template but with SSL enabled now
-        # TODO: We could probably have two different config files, that will make this easier
-        with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}.conf', 'w', newline='\n') as config:
-            for line in template:
-                config.write(line.replace('<CWPM_DOMAIN>', domain).replace('<CWPM_ID>', id).replace('#ssl_certificate', 'ssl_certificate').replace('#ssl_certificate_key', 'ssl_certificate_key'))
+        with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/{'nginx' if not skip_ssl else 'nginx-http-only'}.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}.conf', 'w', newline='\n') as config:
+            config.writelines(line.replace('<CWPM_DOMAIN>', domain).replace('<CWPM_ID>', id) for line in template)
 
         # Send a signal to Nginx to gracefully reload configuration
         docker_client.containers.list(filters={'name': 'cwpm-nginx'})[0].exec_run('nginx -s reload')
+
+        if not skip_ssl:
+            certbot_container = progress.add_task("Generating SSL certificate...", total=100)
+            progress.update(certbot_container, advance=50)
+            docker_client.containers.run(
+                image='certbot/certbot',
+                name='cwpm-certbot',
+                volumes=[
+                    f'/opt/containerized-wp-manager/certbot/etc/{id}:/etc/letsencrypt:rw',
+                    f'/opt/containerized-wp-manager/certbot/var/{id}:/var/lib/letsencrypt:rw',
+                    f'/opt/containerized-wp-manager/certbot/log/{id}:/var/log/letsencrypt:rw',
+                    f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'
+                ],
+                command=f'certonly --non-interactive --agree-tos --webroot -w /var/www/html -d {domain}'
+            )
+            progress.update(certbot_container, advance=50)
+
+            # Recreate the template but with SSL enabled now
+            # TODO: We could probably have two different config files, that will make this easier
+            with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}.conf', 'w', newline='\n') as config:
+                config.writelines(line.replace('<CWPM_DOMAIN>', domain).replace('<CWPM_ID>', id).replace('#ssl_certificate', 'ssl_certificate').replace('#ssl_certificate_key', 'ssl_certificate_key') for line in template)
+
+            # Send a signal to Nginx to gracefully reload configuration
+            docker_client.containers.list(filters={'name': 'cwpm-nginx'})[0].exec_run('nginx -s reload')
 
     console = Console()
-    console.print(f'The site has correctly initialized, you can now access it via your browser in: https://{domain}', style='green')
+    console.print(f'The site has correctly initialized, you can now access it via your browser in: http{'s' if not skip_ssl else ''}://{domain}', style='green')
