@@ -21,6 +21,10 @@ def install_environment() -> None:
         os.makedirs('/opt/containerized-wp-manager', exist_ok=True)
         os.makedirs('/opt/containerized-wp-manager/sites', exist_ok=True)
         os.makedirs('/opt/containerized-wp-manager/conf', exist_ok=True)
+        os.makedirs('/opt/containerized-wp-manager/certbot', exist_ok=True)
+        os.makedirs('/opt/containerized-wp-manager/certbot/etc', exist_ok=True)
+        os.makedirs('/opt/containerized-wp-manager/certbot/var', exist_ok=True)
+        os.makedirs('/opt/containerized-wp-manager/certbot/log', exist_ok=True)
     except PermissionError:
         console.print('The executing user has no permissions to create the folder /opt/containerized-wp-manager, create it by hand and assign it to the right user.', style='red')
         click.get_current_context().exit(1)
@@ -41,8 +45,12 @@ def install_environment() -> None:
                 image='nginx:1.31',
                 detach=True,
                 name='cwpm-nginx',
-                volumes=['/opt/containerized-wp-manager/conf:/etc/nginx/conf.d:ro', '/opt/containerized-wp-manager/sites:/var/www/html:ro'],
-                ports={'80/tcp': 80},
+                volumes=[
+                    '/opt/containerized-wp-manager/conf:/etc/nginx/conf.d:ro',
+                    '/opt/containerized-wp-manager/sites:/var/www/html:ro',
+                    '/opt/containerized-wp-manager/certbot/etc:/etc/ssl/certbot:ro',
+                ],
+                ports={'80/tcp': 80, '443/tcp': 443},
                 restart_policy={"Name": 'always'},
                 network='cwpm-proxy'
             )
