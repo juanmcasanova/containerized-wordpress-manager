@@ -1,8 +1,10 @@
 import os
+import re
 import shutil
 import zipfile
 from urllib.request import urlretrieve
 
+import click
 import docker
 import pymysql
 import yaml
@@ -22,20 +24,27 @@ def configure_mariadb(site_id: str, progress: Progress, task: TaskID) -> None:
         cursor.execute(f'GRANT ALL PRIVILEGES ON cwpm_{site_id}.* TO `cwpm_{site_id}`@`%`')
         progress.update(task, advance=34)
 
-def configure_wordpress(site_id: str) -> None:
+def configure_wordpress(site_id: str, prefix: str|None) -> None:
     """Configures the wp-config.php file for WordPress."""
-    with open(f'/opt/containerized-wp-manager/sites/{site_id}/wp-config-sample.php', 'r') as input, open(f'/opt/containerized-wp-manager/sites/{site_id}/wp-config.php', 'w') as output:
-        for line in input:
-            if 'database_name_here' in line:
-                line = line.replace('database_name_here', f'cwpm_{site_id}')
-            elif 'username_here' in line:
-                line = line.replace('username_here', f'cwpm_{site_id}')
-            elif 'password_here' in line:
-                line = line.replace('password_here', 'test')
-            elif 'DB_HOST' in line:
-                line = line.replace('localhost', 'cwpm-mariadb')
+    # If the wp-config.php file already exists, use it as the source (that ensures custom configurations remain on import)
+    original_file = None
+    if os.path.isfile(f'/opt/containerized-wp-manager/sites/{site_id}/wp-config.php'):
+        with open(f'/opt/containerized-wp-manager/sites/{site_id}/wp-config.php', 'r', newline='\n') as input:
+            original_file = input.read()
+    else:
+        with open(f'/opt/containerized-wp-manager/sites/{site_id}/wp-config-sample.php', 'r', newline='\n') as input:
+            original_file = input.read()
 
-            output.write(line)
+    with open(f'/opt/containerized-wp-manager/sites/{site_id}/wp-config.php', 'w') as output:
+        original_file = re.sub('define\\(\\s?\'DB_NAME\',\\s?\'.*\'\\s?\\);', f'define( \'DB_NAME\', \'cwpm_{site_id}\' );', original_file)
+        original_file = re.sub('define\\(\\s?\'DB_USER\',\\s?\'.*\'\\s?\\);', f'define( \'DB_USER\', \'cwpm_{site_id}\' );', original_file)
+        original_file = re.sub('define\\(\\s?\'DB_PASSWORD\',\\s?\'.*\'\\s?\\);', 'define( \'DB_PASSWORD\', \'test\' );', original_file)
+        original_file = re.sub('define\\(\\s?\'DB_HOST\',\\s?\'.*\'\\s?\\);', 'define( \'DB_HOST\', \'cwpm-mariadb\' );', original_file)
+        # Don't touch the prefix if not set (this allows importing custom-prefix sites without setting it explicitly)
+        if prefix:
+            original_file = re.sub('\\$table_prefix\\s?=\\s?\'.*\';', f'$table_prefix = \'{prefix}\';', original_file)
+
+        output.write(original_file)
 
 def start_container(id:str, docker_client: docker.DockerClient) -> None:
     container = docker_client.containers.run(
@@ -49,27 +58,43 @@ def start_container(id:str, docker_client: docker.DockerClient) -> None:
     )
     docker_client.networks.list(names='cwpm-services')[0].connect(container)
 
-def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
+def add_instance(domain: str, aliases: list[str], skip_ssl: bool, zip_path: str|None = None, prefix: str|None = None) -> None:
     """Adds everything needed for a new WordPress instance."""
     # TODO: Check (and fail) if the instance already exists
-    # TODO: Ensure we never let the temp folder stay if something fails
-    os.makedirs('/tmp/cwpm')
+    os.makedirs('/tmp/cwpm/site')
 
     id = slugify(domain, separator='_')
+    console = Console()
 
     with Progress() as progress:
-        download_task = progress.add_task("Downloading WordPress...", total=100)
-        filename = '/tmp/cwpm/wp-latest.zip'
-        urlretrieve('https://wordpress.org/latest.zip', filename)
-        progress.update(download_task, advance=100)
+        try:
+            filename = zip_path
+            if not filename:
+                filename = '/tmp/cwpm/wp-latest.zip'
+                download_task = progress.add_task("Downloading WordPress...", total=100)
+                urlretrieve('https://wordpress.org/latest.zip', filename)
+                progress.update(download_task, advance=100)
 
-        extraction_task = progress.add_task("Extracting WordPress...", total=100)
-        with zipfile.ZipFile(filename, 'r') as zf:
-            zf.extractall('/opt/containerized-wp-manager/sites')
-        progress.update(extraction_task, advance=100)
+            extraction_task = progress.add_task("Extracting WordPress...", total=100)
+            with zipfile.ZipFile(filename, 'r') as zf:
+                zf.extractall('/tmp/cwpm/site')
+            progress.update(extraction_task, advance=100)
 
-        os.rename('/opt/containerized-wp-manager/sites/wordpress', f'/opt/containerized-wp-manager/sites/{id}')
-        shutil.rmtree('/tmp/cwpm')
+            # If there is a wp-config.php in the root of the folder, it should mean the whole WordPress is there
+            if os.path.isfile('/tmp/cwpm/site/wp-config.php'):
+                shutil.move('/tmp/cwpm/site', f'/opt/containerized-wp-manager/sites/{id}')
+            else:
+                extracted_files = os.listdir('/tmp/cwpm/site')
+                # Only move if there is only one element extracted, it is a directory and contains a wp-config.php (or wp-config-sample.php) file
+                if 1 == len(extracted_files) and os.path.isdir(f'/tmp/cwpm/site/{extracted_files[0]}') and (os.path.isfile(f'/tmp/cwpm/site/{extracted_files[0]}/wp-config.php') or os.path.isfile(f'/tmp/cwpm/site/{extracted_files[0]}/wp-config-sample.php')):
+                    shutil.move(f'/tmp/cwpm/site/{extracted_files[0]}', f'/opt/containerized-wp-manager/sites/{id}')
+                else:
+                    progress.stop()
+                    console.print('Cannot detect the ZIP structure! It must have either directly the files o a directory containing all the files.', style='red')
+                    click.get_current_context().exit(1)
+        finally:
+            shutil.rmtree('/tmp/cwpm')
+
         with open(f'/opt/containerized-wp-manager/sites/{id}/.cwpm-config.yaml', 'w') as alias_config:
             alias_config.writelines(yaml.dump({'domain': domain, 'http-only': skip_ssl, 'aliases': aliases}))
 
@@ -83,7 +108,7 @@ def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
         configure_mariadb(id, progress, mariadb_task)
 
         wordpress_task = progress.add_task("Configuring WordPress...", total=100)
-        configure_wordpress(id)
+        configure_wordpress(id, prefix)
         progress.update(wordpress_task, advance=100)
 
         docker_client = docker.from_env()
@@ -148,5 +173,4 @@ def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
             # Send a signal to Nginx to gracefully reload configuration
             docker_client.containers.list(filters={'name': 'cwpm-nginx'})[0].exec_run('nginx -s reload')
 
-    console = Console()
     console.print(f'The site has correctly initialized, you can now access it via your browser in: http{'s' if not skip_ssl else ''}://{domain}', style='green')

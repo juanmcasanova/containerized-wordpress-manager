@@ -41,7 +41,8 @@ def list_command() -> None:
 @click.argument('domain', help='Domain where the new instance will be served at')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL configuration and certificate generation when configuring Nginx')
 @click.option('--alias', '-a', multiple=True, help='Additional domains that will redirect to the main domain')
-def add(domain: str, skip_ssl: bool, alias: list[str]) -> None:
+@click.option('--prefix', '-p', help='Custom database prefix that will be used in the WordPress configuration')
+def add(domain: str, skip_ssl: bool, alias: list[str], prefix: str|None) -> None:
     """Adds a new configured WordPress instance."""
     # TODO: We should validate that domain is actually a domain
     console = Console()
@@ -49,7 +50,23 @@ def add(domain: str, skip_ssl: bool, alias: list[str]) -> None:
     if skip_ssl:
         console.print('Configuring HTTP-only site, this should only be used for testing purposes!', style='yellow')
 
-    add_instance(domain, alias, skip_ssl)
+    add_instance(domain, alias, skip_ssl, None, prefix)
+
+@main.command('import')
+@click.argument('domain', help='Domain where the new instance will be served at')
+@click.argument('archive', help='Path to the ZIP file that contains the WordPress instance')
+@click.option('--skip-ssl', is_flag=True, help='Skip SSL configuration and certificate generation when configuring Nginx')
+@click.option('--alias', '-a', multiple=True, help='Additional domains that will redirect to the main domain')
+@click.option('--prefix', '-p', help='Custom database prefix that will be used in the WordPress configuration')
+def import_site(domain: str, archive:str, skip_ssl: bool, alias: list[str], prefix: str|None) -> None:
+    """Adds a new configured WordPress instance."""
+    # TODO: We should validate that domain is actually a domain
+    console = Console()
+
+    if skip_ssl:
+        console.print('Configuring HTTP-only site, this should only be used for testing purposes!', style='yellow')
+
+    add_instance(domain, alias, skip_ssl, archive, prefix)
 
 @main.group('maintenance')
 def maintenance() -> None:
