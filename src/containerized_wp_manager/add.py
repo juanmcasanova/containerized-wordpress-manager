@@ -5,6 +5,7 @@ from urllib.request import urlretrieve
 
 import docker
 import pymysql
+import yaml
 from rich.console import Console
 from rich.progress import Progress, TaskID
 from slugify import slugify
@@ -57,10 +58,14 @@ def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
 
         os.rename('/opt/containerized-wp-manager/sites/wordpress', f'/opt/containerized-wp-manager/sites/{id}')
         shutil.rmtree('/tmp/cwpm')
+        with open(f'/opt/containerized-wp-manager/sites/{id}/.cwpm-config.yaml', 'w') as alias_config:
+            alias_config.writelines(yaml.dump({'domain': domain, 'http-only': skip_ssl, 'aliases': aliases}))
 
-        # Create a site folder for each alias, as Certbot needs it to serve the HTTP-01 challenge
+        # Create a site folder for each alias to use with Certbot and to save the needed configuration file
         for alias in aliases:
             os.mkdir(f'/opt/containerized-wp-manager/sites/{slugify(alias, separator='_')}')
+            with open(f'/opt/containerized-wp-manager/sites/{slugify(alias, separator='_')}/.cwpm-alias.yaml', 'w') as alias_config:
+                alias_config.writelines(yaml.dump({'domain': alias, 'http-only': skip_ssl, 'main-domain': domain}))
 
         mariadb_task = progress.add_task("Configuring MariaDB...", total=100)
         configure_mariadb(id, progress, mariadb_task)
