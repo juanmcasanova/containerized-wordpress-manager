@@ -5,6 +5,7 @@ from containerized_wp_manager.add import add_instance
 from containerized_wp_manager.check import check_and_print
 from containerized_wp_manager.install import install_environment
 from containerized_wp_manager.list import list_instances
+from containerized_wp_manager.update import update_containers
 
 
 @click.group()
@@ -47,6 +48,24 @@ def add(domain: str, skip_ssl: bool, alias: list[str]) -> None:
         console.print('Configuring HTTP-only site, this should only be used for testing purposes!', style='yellow')
 
     add_instance(domain, alias, skip_ssl)
+
+@main.group('maintenance')
+def maintenance() -> None:
+    """Performs various maintenance-related tasks."""
+
+@maintenance.command('update')
+@click.argument('domain', default='all', help='Domain to update, if not set or set to `all`, it will update all domains plus additional services (Nginx and MariaDB, mainly).')
+def update(domain: str) -> None:
+    """Updates all images based on the configured tags."""
+    update_containers(domain if domain != 'all' else None)
+
+@maintenance.command('cleanup')
+def cleanup() -> None:
+    """Performs any cleanup task needed for maintentance."""
+
+@maintenance.command('renew')
+def renew() -> None:
+    """Renews all certificates that need renewing via Certbot."""
 
 if __name__ == '__main__':
     main()

@@ -19,7 +19,7 @@ def instance_list() -> list[dict[str, str]]:
                 instances.append({'id': instance, 'external': False, 'alias': True, 'config': config})
         else:
             # This means we have nothing to do with this site, list it as an external site
-            instances.append({'id': instance, 'external': True})
+            instances.append({'id': instance, 'external': True, 'alias': False})
 
     return instances
 

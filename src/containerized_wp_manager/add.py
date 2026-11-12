@@ -37,6 +37,18 @@ def configure_wordpress(site_id: str) -> None:
 
             output.write(line)
 
+def start_container(id:str, docker_client: docker.DockerClient) -> None:
+    container = docker_client.containers.run(
+        image='cwpm-php-fpm:latest',
+        detach=True,
+        name=f'cwpm-{id}',
+        volumes=[f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'],
+        restart_policy={"Name": 'always'},
+        network='cwpm-proxy',
+        user=os.getuid()
+    )
+    docker_client.networks.list(names='cwpm-services')[0].connect(container)
+
 def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
     """Adds everything needed for a new WordPress instance."""
     # TODO: Check (and fail) if the instance already exists
@@ -77,18 +89,8 @@ def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
         docker_client = docker.from_env()
 
         container_task = progress.add_task("Creating Docker container...", total=100)
-        container = docker_client.containers.run(
-            image='cwpm-php-fpm:latest',
-            detach=True,
-            name=f'cwpm-{id}',
-            volumes=[f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'],
-            restart_policy={"Name": 'always'},
-            network='cwpm-proxy',
-            user=os.getuid()
-        )
-        progress.update(container_task, advance=50)
-        docker_client.networks.list(names='cwpm-services')[0].connect(container)
-        progress.update(container_task, advance=50)
+        start_container(id, docker_client)
+        progress.update(container_task, advance=100)
 
         # Configure only the HTTP part of the site (and aliases) so we can generate a valid SSL certificate
         with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx-sites/http{'-only' if skip_ssl else '' }.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}-http.conf', 'w', newline='\n') as config:
