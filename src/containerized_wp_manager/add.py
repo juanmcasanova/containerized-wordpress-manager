@@ -2,29 +2,60 @@ import os
 import re
 import shutil
 import zipfile
+from pprint import pprint
 from urllib.request import urlretrieve
 
 import click
 import docker
 import pymysql
 import yaml
+from docker.errors import ContainerError
 from rich.console import Console
 from rich.progress import Progress, TaskID
 from slugify import slugify
 
+from containerized_wp_manager.install import MARIADB_TAG
 
-def configure_mariadb(site_id: str, progress: Progress, task: TaskID) -> None:
-    """Configures the MariaDB database with everything necessary for WordPress to work."""
+
+def configure_mariadb(site_id: str, docker_client: docker.DockerClient, database_dump: str|None, progress: Progress, task: TaskID) -> str:
+    """Configures the MariaDB database with everything necessary for WordPress to work.
+
+    Returns
+    -------
+    str
+        The generated password for the site.
+    """
     with pymysql.connect(user='root', password='root', host='127.0.0.1', port=3306) as connection, connection.cursor() as cursor:
         # TODO: We should configure the network so we can limit this to the Docker subnet
         cursor.execute(f'CREATE USER `cwpm_{site_id}`@`%` IDENTIFIED BY \'test\'')
-        progress.update(task, advance=33)
+        progress.update(task, advance=1)
         cursor.execute(f'CREATE DATABASE cwpm_{site_id}')
-        progress.update(task, advance=33)
+        progress.update(task, advance=1)
         cursor.execute(f'GRANT ALL PRIVILEGES ON cwpm_{site_id}.* TO `cwpm_{site_id}`@`%`')
-        progress.update(task, advance=34)
+        progress.update(task, advance=1)
+        if database_dump:
+            # Using Python is troublesome, use the MariaDB client and forget about it
+            try:
+                docker_client.containers.run(
+                    image=f'mariadb:{MARIADB_TAG}',
+                    auto_remove=True,
+                    name='cwpm-mariadb-import',
+                    volumes=[f'{database_dump}:/tmp/dump.sql:ro'],
+                    network='cwpm-services',
+                    environment={'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD': '1'},
+                    entrypoint='',
+                    command=f'mariadb -u root -proot -h cwpm-mariadb cwpm_{site_id} -e "SOURCE /tmp/dump.sql"',
+                    stdout=True,
+                    stderr=True
+                )
+            except ContainerError as e:
+                pprint(e)
+                raise
+            progress.update(task, advance=1)
 
-def configure_wordpress(site_id: str, prefix: str|None) -> None:
+    return 'test'
+
+def configure_wordpress(site_id: str, mariadb_password: str, prefix: str|None) -> None:
     """Configures the wp-config.php file for WordPress."""
     # If the wp-config.php file already exists, use it as the source (that ensures custom configurations remain on import)
     original_file = None
@@ -38,7 +69,7 @@ def configure_wordpress(site_id: str, prefix: str|None) -> None:
     with open(f'/opt/containerized-wp-manager/sites/{site_id}/wp-config.php', 'w') as output:
         original_file = re.sub('define\\(\\s?\'DB_NAME\',\\s?\'.*\'\\s?\\);', f'define( \'DB_NAME\', \'cwpm_{site_id}\' );', original_file)
         original_file = re.sub('define\\(\\s?\'DB_USER\',\\s?\'.*\'\\s?\\);', f'define( \'DB_USER\', \'cwpm_{site_id}\' );', original_file)
-        original_file = re.sub('define\\(\\s?\'DB_PASSWORD\',\\s?\'.*\'\\s?\\);', 'define( \'DB_PASSWORD\', \'test\' );', original_file)
+        original_file = re.sub('define\\(\\s?\'DB_PASSWORD\',\\s?\'.*\'\\s?\\);', f'define( \'DB_PASSWORD\', \'{mariadb_password}\' );', original_file)
         original_file = re.sub('define\\(\\s?\'DB_HOST\',\\s?\'.*\'\\s?\\);', 'define( \'DB_HOST\', \'cwpm-mariadb\' );', original_file)
         # Don't touch the prefix if not set (this allows importing custom-prefix sites without setting it explicitly)
         if prefix:
@@ -58,7 +89,7 @@ def start_container(id:str, docker_client: docker.DockerClient) -> None:
     )
     docker_client.networks.list(names='cwpm-services')[0].connect(container)
 
-def add_instance(domain: str, aliases: list[str], skip_ssl: bool, zip_path: str|None = None, prefix: str|None = None) -> None:
+def add_instance(domain: str, aliases: list[str], skip_ssl: bool, prefix: str|None = None, zip_path: str|None = None, database_dump: str|None = None) -> None:
     """Adds everything needed for a new WordPress instance."""
     # TODO: Check (and fail) if the instance already exists
     os.makedirs('/tmp/cwpm/site')
@@ -104,14 +135,14 @@ def add_instance(domain: str, aliases: list[str], skip_ssl: bool, zip_path: str|
             with open(f'/opt/containerized-wp-manager/sites/{slugify(alias, separator='_')}/.cwpm-alias.yaml', 'w') as alias_config:
                 alias_config.writelines(yaml.dump({'domain': alias, 'http-only': skip_ssl, 'main-domain': domain}))
 
-        mariadb_task = progress.add_task("Configuring MariaDB...", total=100)
-        configure_mariadb(id, progress, mariadb_task)
+        docker_client = docker.from_env()
+
+        mariadb_task = progress.add_task("Configuring MariaDB...", total=3 if database_dump is None else 4)
+        mariadb_password = configure_mariadb(id, docker_client, database_dump, progress, mariadb_task)
 
         wordpress_task = progress.add_task("Configuring WordPress...", total=100)
-        configure_wordpress(id, prefix)
+        configure_wordpress(id, mariadb_password, prefix)
         progress.update(wordpress_task, advance=100)
-
-        docker_client = docker.from_env()
 
         container_task = progress.add_task("Creating Docker container...", total=100)
         start_container(id, docker_client)

@@ -1,3 +1,5 @@
+import os
+
 import click
 from rich.console import Console
 
@@ -50,15 +52,16 @@ def add(domain: str, skip_ssl: bool, alias: list[str], prefix: str|None) -> None
     if skip_ssl:
         console.print('Configuring HTTP-only site, this should only be used for testing purposes!', style='yellow')
 
-    add_instance(domain, alias, skip_ssl, None, prefix)
+    add_instance(domain, alias, skip_ssl, prefix)
 
 @main.command('import')
 @click.argument('domain', help='Domain where the new instance will be served at')
 @click.argument('archive', help='Path to the ZIP file that contains the WordPress instance')
+@click.argument('database-dump', help='Path to the SQL file that has to be imported to the database')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL configuration and certificate generation when configuring Nginx')
 @click.option('--alias', '-a', multiple=True, help='Additional domains that will redirect to the main domain')
 @click.option('--prefix', '-p', help='Custom database prefix that will be used in the WordPress configuration')
-def import_site(domain: str, archive:str, skip_ssl: bool, alias: list[str], prefix: str|None) -> None:
+def import_site(domain: str, archive:str, database_dump: str, skip_ssl: bool, alias: list[str], prefix: str|None) -> None:
     """Adds a new configured WordPress instance."""
     # TODO: We should validate that domain is actually a domain
     console = Console()
@@ -66,7 +69,7 @@ def import_site(domain: str, archive:str, skip_ssl: bool, alias: list[str], pref
     if skip_ssl:
         console.print('Configuring HTTP-only site, this should only be used for testing purposes!', style='yellow')
 
-    add_instance(domain, alias, skip_ssl, archive, prefix)
+    add_instance(domain, alias, skip_ssl, prefix, os.path.abspath(archive), os.path.abspath(database_dump))
 
 @main.group('maintenance')
 def maintenance() -> None:
