@@ -1,4 +1,5 @@
 import click
+from containerized_wp_manager.cleanup import perform_cleanup
 from rich.console import Console
 
 from containerized_wp_manager.add import add_instance
@@ -62,6 +63,7 @@ def update(domain: str) -> None:
 @maintenance.command('cleanup')
 def cleanup() -> None:
     """Performs any cleanup task needed for maintentance."""
+    perform_cleanup()
 
 @maintenance.command('renew')
 def renew() -> None:
