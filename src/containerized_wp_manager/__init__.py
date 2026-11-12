@@ -1,6 +1,5 @@
 import click
 from rich.console import Console
-from slugify import slugify
 
 from containerized_wp_manager.add import add_instance
 from containerized_wp_manager.check import check_and_print
@@ -29,7 +28,7 @@ def install() -> None:
     install_environment()
 
 @main.command('list')
-def list() -> None:
+def list_command() -> None:
     """
     Lists all currently available instances.
     """
@@ -38,7 +37,8 @@ def list() -> None:
 @main.command('add')
 @click.argument('domain', help='Domain where the new instance will be served at')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL configuration and certificate generation when configuring Nginx')
-def add(domain: str, skip_ssl: bool) -> None:
+@click.option('--alias', '-a', multiple=True, help='Additional domains that will redirect to the main domain')
+def add(domain: str, skip_ssl: bool, alias: list[str]) -> None:
     """Adds a new configured WordPress instance."""
     # TODO: We should validate that domain is actually a domain
     console = Console()
@@ -46,7 +46,7 @@ def add(domain: str, skip_ssl: bool) -> None:
     if skip_ssl:
         console.print('Configuring HTTP-only site, this should only be used for testing purposes!', style='yellow')
 
-    add_instance(slugify(domain, separator='_'), domain, skip_ssl)
+    add_instance(domain, alias, skip_ssl)
 
 if __name__ == '__main__':
     main()

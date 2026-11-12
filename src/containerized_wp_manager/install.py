@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import click
 import docker
@@ -41,6 +42,7 @@ def install_environment() -> None:
 
         if not checks['containers']['success']:
             containers_task = progress.add_task("Creating necessary containers...", total=100)
+            shutil.copy2(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx-default.conf', '/opt/containerized-wp-manager/conf/000-default.conf')
             docker_client.containers.run(
                 image='nginx:1.31',
                 detach=True,

@@ -9,6 +9,7 @@ import docker
 import pymysql
 from rich.console import Console
 from rich.progress import Progress, TaskID
+from slugify import slugify
 
 
 def configure_mariadb(site_id: str, progress: Progress, task: TaskID) -> None:
@@ -37,10 +38,13 @@ def configure_wordpress(site_id: str) -> None:
 
             output.write(line)
 
-def add_instance(id: str, domain: str, skip_ssl: bool) -> None:
+def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
     """Adds everything needed for a new WordPress instance."""
     # TODO: Check (and fail) if the instance already exists
+    # TODO: Ensure we never let the temp folder stay if something fails
     os.makedirs('/tmp/cwpm')
+
+    id = slugify(domain, separator='_')
 
     with Progress() as progress:
         download_task = progress.add_task("Downloading WordPress...", total=100)
@@ -55,6 +59,10 @@ def add_instance(id: str, domain: str, skip_ssl: bool) -> None:
 
         os.rename('/opt/containerized-wp-manager/sites/wordpress', f'/opt/containerized-wp-manager/sites/{id}')
         shutil.rmtree('/tmp/cwpm')
+
+        # Create a site folder for each alias, as Certbot needs it to serve the HTTP-01 challenge
+        for alias in aliases:
+            os.mkdir(f'/opt/containerized-wp-manager/sites/{slugify(alias, separator='_')}')
 
         mariadb_task = progress.add_task("Configuring MariaDB...", total=100)
         configure_mariadb(id, progress, mariadb_task)
@@ -89,8 +97,13 @@ def add_instance(id: str, domain: str, skip_ssl: bool) -> None:
         docker_client.networks.list(names='cwpm-services')[0].connect(container)
         progress.update(container_task, advance=50)
 
-        with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/{'nginx' if not skip_ssl else 'nginx-http-only'}.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}.conf', 'w', newline='\n') as config:
+        # Configure only the HTTP part of the site (and aliases) so we can generate a valid SSL certificate
+        with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx-sites/http{'-only' if skip_ssl else '' }.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}-http.conf', 'w', newline='\n') as config:
             config.writelines(line.replace('<CWPM_DOMAIN>', domain).replace('<CWPM_ID>', id) for line in template)
+
+        for alias in aliases:
+            with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx-sites/alias-http{'-only' if skip_ssl else ''}.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{slugify(alias, separator='_')}-http.conf', 'w', newline='\n') as config:
+                config.writelines(line.replace('<CWPM_DOMAIN>', alias).replace('<CWPM_ID>', slugify(alias, separator='_')).replace('<CWPM_MAIN_DOMAIN>', domain) for line in template)
 
         # Send a signal to Nginx to gracefully reload configuration
         docker_client.containers.list(filters={'name': 'cwpm-nginx'})[0].exec_run('nginx -s reload')
@@ -107,14 +120,31 @@ def add_instance(id: str, domain: str, skip_ssl: bool) -> None:
                     f'/opt/containerized-wp-manager/certbot/log/{id}:/var/log/letsencrypt:rw',
                     f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'
                 ],
-                command=f'certonly --non-interactive --agree-tos --webroot -w /var/www/html -d {domain}'
+                command=f'certonly --non-interactive --agree-tos --webroot -w /var/www/html -d {domain}',
+                auto_remove=True
             )
+            for alias in aliases:
+                docker_client.containers.run(
+                    image='certbot/certbot',
+                    name='cwpm-certbot',
+                    volumes=[
+                        f'/opt/containerized-wp-manager/certbot/etc/{slugify(alias, separator='_')}:/etc/letsencrypt:rw',
+                        f'/opt/containerized-wp-manager/certbot/var/{slugify(alias, separator='_')}:/var/lib/letsencrypt:rw',
+                        f'/opt/containerized-wp-manager/certbot/log/{slugify(alias, separator='_')}:/var/log/letsencrypt:rw',
+                        f'/opt/containerized-wp-manager/sites/{slugify(alias, separator='_')}:/var/www/html:rw'
+                    ],
+                    command=f'certonly --non-interactive --agree-tos --webroot -w /var/www/html -d {alias}',
+                    auto_remove=True
+                )
             progress.update(certbot_container, advance=50)
 
-            # Recreate the template but with SSL enabled now
-            # TODO: We could probably have two different config files, that will make this easier
-            with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}.conf', 'w', newline='\n') as config:
-                config.writelines(line.replace('<CWPM_DOMAIN>', domain).replace('<CWPM_ID>', id).replace('#ssl_certificate', 'ssl_certificate').replace('#ssl_certificate_key', 'ssl_certificate_key') for line in template)
+            # Configure the SSL sites with the newly created certificates
+            with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx-sites/https.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{id}-https.conf', 'w', newline='\n') as config:
+                config.writelines(line.replace('<CWPM_DOMAIN>', domain).replace('<CWPM_ID>', id) for line in template)
+
+            for alias in aliases:
+                with open(f'{os.path.dirname(os.path.abspath(__file__))}/resources/nginx-sites/alias-https.conf', 'r') as template, open(f'/opt/containerized-wp-manager/conf/{slugify(alias, separator='_')}-https.conf', 'w', newline='\n') as config:
+                    config.writelines(line.replace('<CWPM_DOMAIN>', alias).replace('<CWPM_MAIN_DOMAIN>', domain).replace('<CWPM_ID>', slugify(alias, separator='_')) for line in template)
 
             # Send a signal to Nginx to gracefully reload configuration
             docker_client.containers.list(filters={'name': 'cwpm-nginx'})[0].exec_run('nginx -s reload')
