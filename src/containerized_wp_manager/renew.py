@@ -1,4 +1,5 @@
 import docker
+from docker.errors import ContainerError
 from rich.console import Console
 from rich.progress import Progress
 
@@ -31,7 +32,7 @@ def renew_certs() -> None:
                     f'/opt/containerized-wp-manager/certbot/log/{instance['id']}:/var/log/letsencrypt:rw',
                     f'/opt/containerized-wp-manager/sites/{instance['id']}:/var/www/html:rw'
                 ],
-                command=f'certonly renew --non-interactive --agree-tos --webroot -w /var/www/html -d {instance['config']['domain']}',
+                command=f'certonly --non-interactive --agree-tos --webroot -w /var/www/html -d {instance['config']['domain']}',
                 detach=True
             )
             container.wait()
