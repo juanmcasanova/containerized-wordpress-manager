@@ -26,10 +26,10 @@ def renew_certs() -> None:
                 image='certbot/certbot',
                 name='cwpm-certbot',
                 volumes=[
-                    f'/opt/containerized-wp-manager/certbot/etc/{id}:/etc/letsencrypt:rw',
-                    f'/opt/containerized-wp-manager/certbot/var/{id}:/var/lib/letsencrypt:rw',
-                    f'/opt/containerized-wp-manager/certbot/log/{id}:/var/log/letsencrypt:rw',
-                    f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'
+                    f'/opt/containerized-wp-manager/certbot/etc/{instance['id']}:/etc/letsencrypt:rw',
+                    f'/opt/containerized-wp-manager/certbot/var/{instance['id']}:/var/lib/letsencrypt:rw',
+                    f'/opt/containerized-wp-manager/certbot/log/{instance['id']}:/var/log/letsencrypt:rw',
+                    f'/opt/containerized-wp-manager/sites/{instance['id']}:/var/www/html:rw'
                 ],
                 command=f'certonly renew --non-interactive --agree-tos --webroot -w /var/www/html -d {instance['config']['domain']}',
                 detach=True
