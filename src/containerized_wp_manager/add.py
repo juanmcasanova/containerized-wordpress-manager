@@ -106,7 +106,7 @@ def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
         if not skip_ssl:
             certbot_container = progress.add_task("Generating SSL certificate...", total=100)
             progress.update(certbot_container, advance=50)
-            docker_client.containers.run(
+            container = docker_client.containers.run(
                 image='certbot/certbot',
                 name='cwpm-certbot',
                 volumes=[
@@ -116,10 +116,12 @@ def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
                     f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'
                 ],
                 command=f'certonly --non-interactive --agree-tos --webroot -w /var/www/html -d {domain}',
-                auto_remove=True
+                detach=True,
             )
+            container.wait()
+            container.remove()
             for alias in aliases:
-                docker_client.containers.run(
+                container = docker_client.containers.run(
                     image='certbot/certbot',
                     name='cwpm-certbot',
                     volumes=[
@@ -129,8 +131,10 @@ def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
                         f'/opt/containerized-wp-manager/sites/{slugify(alias, separator='_')}:/var/www/html:rw'
                     ],
                     command=f'certonly --non-interactive --agree-tos --webroot -w /var/www/html -d {alias}',
-                    auto_remove=True
+                    detach=True
                 )
+                container.wait()
+                container.remove()
             progress.update(certbot_container, advance=50)
 
             # Configure the SSL sites with the newly created certificates

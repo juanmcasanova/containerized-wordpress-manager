@@ -22,7 +22,7 @@ def renew_certs() -> None:
             if instance['external'] or instance['config']['http-only']:
                 continue
 
-            docker_client.containers.run(
+            container = docker_client.containers.run(
                 image='certbot/certbot',
                 name='cwpm-certbot',
                 volumes=[
@@ -32,8 +32,10 @@ def renew_certs() -> None:
                     f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'
                 ],
                 command=f'certonly renew --non-interactive --agree-tos --webroot -w /var/www/html -d {instance['config']['domain']}',
-                auto_remove=True
+                detach=True
             )
+            container.wait()
+            container.remove()
 
             progress.update(sites_task, advance=1)
 
