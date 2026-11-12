@@ -4,14 +4,12 @@ import secrets
 import shutil
 import string
 import zipfile
-from pprint import pprint
 from urllib.request import urlretrieve
 
 import click
 import docker
 import pymysql
 import yaml
-from docker.errors import ContainerError
 from rich.console import Console
 from rich.progress import Progress, TaskID
 from slugify import slugify
@@ -48,22 +46,18 @@ def configure_mariadb(site_id: str, docker_client: docker.DockerClient, database
         progress.update(task, advance=1)
         if database_dump:
             # Using Python is troublesome, use the MariaDB client and forget about it
-            try:
-                docker_client.containers.run(
-                    image=f'mariadb:{MARIADB_TAG}',
-                    auto_remove=True,
-                    name='cwpm-mariadb-import',
-                    volumes=[f'{database_dump}:/tmp/dump.sql:ro'],
-                    network='cwpm-services',
-                    environment={'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD': '1'},
-                    entrypoint='',
-                    command=f'mariadb -u root -proot -h cwpm-mariadb cwpm_{site_id} -e "SOURCE /tmp/dump.sql"',
-                    stdout=True,
-                    stderr=True
-                )
-            except ContainerError as e:
-                pprint(e)
-                raise
+            docker_client.containers.run(
+                image=f'mariadb:{MARIADB_TAG}',
+                auto_remove=True,
+                name='cwpm-mariadb-import',
+                volumes=[f'{database_dump}:/tmp/dump.sql:ro'],
+                network='cwpm-services',
+                environment={'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD': '1'},
+                entrypoint='',
+                command=f'mariadb -u root -proot -h cwpm-mariadb cwpm_{site_id} -e "SOURCE /tmp/dump.sql"',
+                stdout=True,
+                stderr=True
+            )
             progress.update(task, advance=1)
 
     return password
