@@ -1,11 +1,12 @@
 import click
-from containerized_wp_manager.cleanup import perform_cleanup
 from rich.console import Console
 
 from containerized_wp_manager.add import add_instance
 from containerized_wp_manager.check import check_and_print
+from containerized_wp_manager.cleanup import perform_cleanup
 from containerized_wp_manager.install import install_environment
 from containerized_wp_manager.list import list_instances
+from containerized_wp_manager.renew import renew_certs
 from containerized_wp_manager.update import update_containers
 
 
@@ -68,6 +69,7 @@ def cleanup() -> None:
 @maintenance.command('renew')
 def renew() -> None:
     """Renews all certificates that need renewing via Certbot."""
+    renew_certs()
 
 if __name__ == '__main__':
     main()
