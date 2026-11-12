@@ -1,7 +1,5 @@
 import os
 import shutil
-import subprocess
-import sys
 import zipfile
 from urllib.request import urlretrieve
 
@@ -71,21 +69,11 @@ def add_instance(domain: str, aliases: list[str], skip_ssl: bool) -> None:
         configure_wordpress(id)
         progress.update(wordpress_task, advance=100)
 
-        progress.stop()
-        # TODO: docker-py is not compatible with BuildKit: https://github.com/docker/docker-py/issues/2230
-        #       https://github.com/aio-libs/aiodocker seems to be
-        subprocess.run(['docker', 'buildx', 'build', '-t', f'cwpm-{id}', f'{os.path.dirname(os.path.abspath(__file__))}/resources'], stdout=sys.stdout, stderr=sys.stderr, check=True)
-
-        progress.remove_task(download_task)
-        progress.remove_task(extraction_task)
-        progress.remove_task(mariadb_task)
-        progress.remove_task(wordpress_task)
-        progress.start()
         docker_client = docker.from_env()
 
         container_task = progress.add_task("Creating Docker container...", total=100)
         container = docker_client.containers.run(
-            image=f'cwpm-{id}:latest',
+            image='cwpm-php-fpm:latest',
             detach=True,
             name=f'cwpm-{id}',
             volumes=[f'/opt/containerized-wp-manager/sites/{id}:/var/www/html:rw'],

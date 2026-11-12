@@ -4,7 +4,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-CHECKS_MAP = {'version': 'Docker version', 'networks': 'Docker networks', 'containers': 'Docker containers'}
+CHECKS_MAP = {'version': 'Docker version', 'networks': 'Docker networks', 'containers': 'Docker containers', 'images': 'Docker images'}
 
 def check_environment() -> dict:
     checks = {}
@@ -33,6 +33,15 @@ def check_environment() -> dict:
     checks['containers'] = {'success' : not missing_containers, 'context': None}
     if missing_containers:
         checks['containers']['context'] = f'Missing containers: {missing_containers}'
+
+    missing_images=['cwpm-php-fpm:latest']
+    for image in docker_client.images.list(filters={'reference': missing_images}):
+        for image_tag in missing_images:
+            if image_tag in image.tags:
+                missing_images.pop(missing_images.index(image_tag))
+    checks['images'] = {'success' : not missing_images, 'context': None}
+    if missing_images:
+        checks['images']['context'] = f'Missing images: {missing_images}'
 
     return checks
 

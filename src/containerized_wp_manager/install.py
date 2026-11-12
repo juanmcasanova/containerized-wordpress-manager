@@ -1,5 +1,7 @@
 import os
 import shutil
+import subprocess
+import sys
 
 import click
 import docker
@@ -8,6 +10,7 @@ from rich.progress import Progress
 
 from containerized_wp_manager.check import check_environment
 
+PHP_TAG = '8.5-fpm'
 
 def install_environment() -> None:
     """Configures everything missing to ensure the environment is right."""
@@ -70,3 +73,14 @@ def install_environment() -> None:
                 environment={'MARIADB_ROOT_PASSWORD': 'root'}
             )
             progress.update(containers_task, advance=100)
+
+        # The image build *always* has to be the last task, as it is not compatible with the progress indicator
+        progress.stop()
+        if not checks['images']['success']:
+            build_php_image(docker_client)
+
+def build_php_image(docker_client: docker.DockerClient) -> None:
+    """Builds the shared PHP image that will be used in every site."""
+    # TODO: docker-py is not compatible with BuildKit: https://github.com/docker/docker-py/issues/2230
+    #       https://github.com/aio-libs/aiodocker seems to be
+    subprocess.run(['docker', 'buildx', 'build', '-t', 'cwpm-php-fpm', f'{os.path.dirname(os.path.abspath(__file__))}/resources', '--no-cache', '--pull', '--build-arg', f'BASE_PHP={PHP_TAG}'], stdout=sys.stdout, stderr=sys.stderr, check=True)
