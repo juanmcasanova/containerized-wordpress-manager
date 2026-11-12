@@ -1,6 +1,8 @@
 import os
 import re
+import secrets
 import shutil
+import string
 import zipfile
 from pprint import pprint
 from urllib.request import urlretrieve
@@ -27,7 +29,18 @@ def configure_mariadb(site_id: str, docker_client: docker.DockerClient, database
     """
     with pymysql.connect(user='root', password='root', host='127.0.0.1', port=3306) as connection, connection.cursor() as cursor:
         # TODO: We should configure the network so we can limit this to the Docker subnet
-        cursor.execute(f'CREATE USER `cwpm_{site_id}`@`%` IDENTIFIED BY \'test\'')
+        # Copied from the Python documentation: https://docs.python.org/3/library/secrets.html#recipes-and-best-practices
+        allowed_chars = '|+-.,;:¿?=)(=%&$~·#@'
+        alphabet = string.ascii_letters + string.digits + allowed_chars
+        password = None
+        while True:
+            password = ''.join(secrets.choice(alphabet) for _ in range(14))
+            if (any(c.islower() for c in password)
+                    and any(c.isupper() for c in password)
+                    and any(c.isdigit() for c in password)
+                    and any(c in '|+-.,;:¿?=)(=%&$~·#@' for c in password)):
+                break
+        cursor.execute(f'CREATE USER `cwpm_{site_id}`@`%` IDENTIFIED BY \'{password}\'')
         progress.update(task, advance=1)
         cursor.execute(f'CREATE DATABASE cwpm_{site_id}')
         progress.update(task, advance=1)
@@ -53,7 +66,7 @@ def configure_mariadb(site_id: str, docker_client: docker.DockerClient, database
                 raise
             progress.update(task, advance=1)
 
-    return 'test'
+    return password
 
 def configure_wordpress(site_id: str, mariadb_password: str, prefix: str|None) -> None:
     """Configures the wp-config.php file for WordPress."""
