@@ -1,5 +1,4 @@
 import docker
-from docker.errors import ContainerError
 from rich.console import Console
 from rich.progress import Progress
 
