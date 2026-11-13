@@ -1,10 +1,15 @@
 import os
+import secrets
 import shutil
+import string
 import subprocess
 import sys
+from time import sleep
 
 import click
 import docker
+import pymysql
+import yaml
 from rich.console import Console
 from rich.progress import Progress
 
@@ -77,6 +82,17 @@ def start_nginx_container(docker_client: docker.DockerClient) -> None:
 
 def start_mariadb_container(docker_client: docker.DockerClient) -> None:
     """Starts the MariaDB container."""
+    allowed_chars = '|+-.,;:?=)(=%&$~·#@'
+    alphabet = string.ascii_letters + string.digits + allowed_chars
+    root_password = None
+    while True:
+        root_password = ''.join(secrets.choice(alphabet) for _ in range(14))
+        if (any(c.islower() for c in root_password)
+                and any(c.isupper() for c in root_password)
+                and any(c.isdigit() for c in root_password)
+                and any(c in '|+-.,;:?=)(=%&$~·#@' for c in root_password)):
+            break
+
     docker_client.images.pull(f'mariadb:{MARIADB_TAG}')
     docker_client.containers.run(
         image=f'mariadb:{MARIADB_TAG}',
@@ -88,8 +104,28 @@ def start_mariadb_container(docker_client: docker.DockerClient) -> None:
         network='cwpm-services',
         # TODO: Obviously, change this!
         # TODO: We should have a specific user for cwpm, never use root (and disable `root`@`%`)
-        environment={'MARIADB_ROOT_PASSWORD': 'root'}
+        environment={'MARIADB_ROOT_PASSWORD': root_password}
     )
+
+    # TODO: Set a healthcheck for the container and wait until ready instead of a fixed amount of time
+    sleep(15)
+
+    cwpm_password = None
+    while True:
+        cwpm_password = ''.join(secrets.choice(alphabet) for _ in range(14))
+        if (any(c.islower() for c in cwpm_password)
+                and any(c.isupper() for c in cwpm_password)
+                and any(c.isdigit() for c in cwpm_password)
+                and any(c in '|+-.,;:?=)(=%&$~·#@' for c in cwpm_password)):
+            break
+
+    with pymysql.connect(user='root', password=root_password, host='127.0.0.1', port=3306) as connection, connection.cursor() as cursor:
+        cursor.execute(f'CREATE USER `cwpm`@`%` IDENTIFIED BY \'{cwpm_password}\'')
+        cursor.execute('GRANT ALL PRIVILEGES ON *.* TO `cwpm`@`%` WITH GRANT OPTION')
+
+    # Save the user password so it can actually be used
+    with open('/opt/containerized-wp-manager/cwpm.yaml', 'w') as config:
+        yaml.dump({'database': {'username': 'cwpm', 'password': cwpm_password}}, config)
 
 def build_php_image() -> None:
     """Builds the shared PHP image that will be used in every site."""

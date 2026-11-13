@@ -25,10 +25,14 @@ def configure_mariadb(site_id: str, docker_client: docker.DockerClient, database
     str
         The generated password for the site.
     """
-    with pymysql.connect(user='root', password='root', host='127.0.0.1', port=3306) as connection, connection.cursor() as cursor:
+    # TODO: We should centralize configuration loading
+    with open('/opt/containerized-wp-manager/cwpm.yaml', 'r') as config:
+        cpwm_config = yaml.load(config, Loader=yaml.Loader)
+
+    with pymysql.connect(user=cpwm_config['database']['username'], password=cpwm_config['database']['password'], host='127.0.0.1', port=3306) as connection, connection.cursor() as cursor:
         # TODO: We should configure the network so we can limit this to the Docker subnet
         # Copied from the Python documentation: https://docs.python.org/3/library/secrets.html#recipes-and-best-practices
-        allowed_chars = '|+-.,;:¿?=)(=%&$~·#@'
+        allowed_chars = '|+-.,;:?=)(=%&$~·#@'
         alphabet = string.ascii_letters + string.digits + allowed_chars
         password = None
         while True:
@@ -36,7 +40,7 @@ def configure_mariadb(site_id: str, docker_client: docker.DockerClient, database
             if (any(c.islower() for c in password)
                     and any(c.isupper() for c in password)
                     and any(c.isdigit() for c in password)
-                    and any(c in '|+-.,;:¿?=)(=%&$~·#@' for c in password)):
+                    and any(c in '|+-.,;:?=)(=%&$~·#@' for c in password)):
                 break
         cursor.execute(f'CREATE USER `cwpm_{site_id}`@`%` IDENTIFIED BY \'{password}\'')
         progress.update(task, advance=1)
@@ -54,7 +58,7 @@ def configure_mariadb(site_id: str, docker_client: docker.DockerClient, database
                 network='cwpm-services',
                 environment={'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD': '1'},
                 entrypoint='',
-                command=f'mariadb -u root -proot -h cwpm-mariadb cwpm_{site_id} -e "SOURCE /tmp/dump.sql"',
+                command=f'mariadb -u {cpwm_config['database']['username']} --password="{cpwm_config['database']['password']}" -h cwpm-mariadb cwpm_{site_id} -e "SOURCE /tmp/dump.sql"',
                 stdout=True,
                 stderr=True
             )
